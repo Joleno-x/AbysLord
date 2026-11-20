@@ -1,22 +1,28 @@
 
 import { useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import {
   Activity, Anvil, Bell, CalendarClock, CalendarDays, Check, ChevronRight,
-  CircleHelp, Coins, Crown, Flame, LayoutDashboard, LogIn, Plus, RefreshCw,
+  CircleHelp, Coins, Crown, Flame, LayoutDashboard, LogIn, LogOut, Plus, RefreshCw,
   Settings, Shield, Swords, Users, Zap, Clock3, ExternalLink, Sparkles
 } from "lucide-react";
+import { supabase } from "./lib/supabase";
 
 type UpdateApi = {
   downloadUpdate: () => Promise<{ ok: boolean; message?: string }>;
   installUpdate: () => void;
-  onUpdateAvailable: (callback: (version: string) => void) => void;
-  onUpdateDownloaded: (callback: () => void) => void;
-  onUpdateError: (callback: (message: string) => void) => void;
+  onUpdateAvailable: (callback: (version: string) => void) => (() => void) | void;
+  onUpdateDownloaded: (callback: () => void) => (() => void) | void;
+  onUpdateError: (callback: (message: string) => void) => (() => void) | void;
 };
 
 declare global {
   interface Window {
     abyslordUpdater?: UpdateApi;
+    abyslordAuth?: {
+      openExternal: (url: string) => Promise<{ ok: boolean; message?: string }>;
+      onAuthCallback: (callback: (url: string) => void) => () => void;
+    };
   }
 }
 
@@ -117,6 +123,10 @@ function getResetCountdown(weekly: boolean, now: Date) {
 
 function App() {
   const [loggedInPreview, setLoggedInPreview] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+
   const [characters, setCharacters] = useState(initialCharacters);
   const [subscription, setSubscription] = useState(false);
   const [activeNav, setActiveNav] = useState("Painel");
@@ -133,6 +143,146 @@ function App() {
 
   const cap = subscription ? 840 : 560;
 
+  // Recupera a sessão e recebe o retorno do Discord.
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!active) return;
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      if (data.session) {
+        setAuthUser(data.session.user);
+        setLoggedInPreview(true);
+      }
+    }
+
+    void restoreSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!active) return;
+
+        setAuthUser(session?.user ?? null);
+
+        if (session) {
+          setLoggedInPreview(true);
+        }
+      }
+    );
+
+    const removeCallback = window.abyslordAuth?.onAuthCallback((callbackUrl) => {
+      void (async () => {
+        setAuthLoading(true);
+        setAuthError("");
+
+        try {
+          const parsedUrl = new URL(callbackUrl);
+          const errorDescription =
+            parsedUrl.searchParams.get("error_description") ||
+            parsedUrl.searchParams.get("error");
+
+          if (errorDescription) {
+            throw new Error(errorDescription);
+          }
+
+          const code = parsedUrl.searchParams.get("code");
+
+          if (!code) {
+            throw new Error("O retorno do Discord não contém o código de autenticação.");
+          }
+
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error) throw error;
+          if (!data.session) {
+            throw new Error("Não foi possível iniciar sua sessão.");
+          }
+
+          if (active) {
+            setAuthUser(data.session.user);
+            setLoggedInPreview(true);
+            setAuthError("");
+          }
+        } catch (error) {
+          if (active) {
+            setAuthError(
+              error instanceof Error ? error.message : "Falha ao concluir o login."
+            );
+          }
+        } finally {
+          if (active) setAuthLoading(false);
+        }
+      })();
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+      removeCallback?.();
+    };
+  }, []);
+
+  // Login real com Discord.
+  async function loginWithDiscord() {
+    if (!window.abyslordAuth) {
+      setAuthError("O sistema de autenticação do aplicativo não está disponível. Verifique a versão instalada.");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "discord",
+        options: {
+          redirectTo: "abyslord://auth/callback",
+          skipBrowserRedirect: true
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.url) {
+        throw new Error("O Supabase não retornou o endereço de autenticação.");
+      }
+
+      const result = await window.abyslordAuth.openExternal(data.url);
+
+      if (!result.ok) {
+        throw new Error(result.message || "Não foi possível abrir o navegador.");
+      }
+    } catch (error) {
+      setAuthError(
+        error instanceof Error ? error.message : "Não foi possível iniciar o login."
+      );
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    if (authUser) {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        setNotice(`Não foi possível sair: ${error.message}`);
+        return;
+      }
+    }
+
+    setAuthUser(null);
+    setLoggedInPreview(false);
+    setAuthError("");
+    setActiveNav("Painel");
+  }
+
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(t);
@@ -142,21 +292,27 @@ function App() {
     const updater = window.abyslordUpdater;
     if (!updater) return;
 
-    updater.onUpdateAvailable((version) => {
+    const removeAvailable = updater.onUpdateAvailable((version) => {
       setUpdateVersion(version);
       setUpdateDownloaded(false);
       setUpdateError("");
     });
 
-    updater.onUpdateDownloaded(() => {
+    const removeDownloaded = updater.onUpdateDownloaded(() => {
       setUpdateDownloaded(true);
       setUpdateBusy(false);
     });
 
-    updater.onUpdateError((message) => {
+    const removeError = updater.onUpdateError((message) => {
       setUpdateError(message);
       setUpdateBusy(false);
     });
+
+    return () => {
+      removeAvailable?.();
+      removeDownloaded?.();
+      removeError?.();
+    };
   }, []);
 
   async function downloadAbysLordUpdate() {
@@ -220,6 +376,17 @@ function App() {
     setShowAdd(false);
   }
 
+  const discordName =
+    authUser?.user_metadata?.full_name ||
+    authUser?.user_metadata?.name ||
+    authUser?.user_metadata?.preferred_username ||
+    "Conta Discord";
+
+  const discordAvatar =
+    authUser?.user_metadata?.avatar_url ||
+    authUser?.user_metadata?.picture ||
+    "";
+
   if (!loggedInPreview) {
     return (
       <div className="login-screen">
@@ -235,12 +402,32 @@ function App() {
           <h1>Sua jornada começa aqui.</h1>
           <p>Acompanhe seus personagens, recursos e eventos do AION 2 em um só lugar.</p>
 
-          <button className="discord-login" onClick={() => setLoggedInPreview(true)}>
-            <LogIn size={18} /> Entrar com Discord
+          <button
+            className="discord-login"
+            onClick={() => void loginWithDiscord()}
+            disabled={authLoading}
+          >
+            <LogIn size={18} />
+            {authLoading ? "Conectando..." : "Entrar com Discord"}
           </button>
 
+          {authError && (
+            <div style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 8,
+              background: "#501f2a",
+              color: "#ffcccc",
+              fontSize: 13,
+              lineHeight: 1.5,
+              maxWidth: 360
+            }}>
+              {authError}
+            </div>
+          )}
+
           <div className="login-foot">
-            <Shield size={13} /> Login Discord e sincronização Supabase serão conectados na próxima etapa.
+            <Shield size={13} /> Autenticação segura pelo Discord e Supabase.
           </div>
 
           <button className="preview-link" onClick={() => setLoggedInPreview(true)}>
@@ -350,7 +537,7 @@ function App() {
           </button>
 
           <div className="connection">
-            <span className="status-dot" /> Prévia local <span className="version">v1.3</span>
+            <span className="status-dot" /> {authUser ? "Conta conectada" : "Prévia local"} <span className="version">v1.3</span>
           </div>
         </div>
       </aside>
@@ -379,7 +566,43 @@ function App() {
               <CircleHelp size={18} />
             </button>
 
-            <div className="avatar">AL</div>
+            {authUser ? (
+              <button
+                title={`Conta Discord: ${discordName}. Clique para sair.`}
+                onClick={() => void logout()}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "1px solid #39334f",
+                  background: "#17152b",
+                  color: "#fff",
+                  borderRadius: 20,
+                  padding: "5px 10px",
+                  cursor: "pointer"
+                }}
+              >
+                {discordAvatar ? (
+                  <img
+                    src={discordAvatar}
+                    alt="Avatar Discord"
+                    style={{ width: 27, height: 27, borderRadius: "50%" }}
+                  />
+                ) : (
+                  <div className="avatar">{discordName.slice(0, 2).toUpperCase()}</div>
+                )}
+                <span style={{ fontSize: 12 }}>{discordName}</span>
+                <LogOut size={15} />
+              </button>
+            ) : (
+              <button
+                className="avatar"
+                title="Sair da demonstração"
+                onClick={() => void logout()}
+              >
+                AL
+              </button>
+            )}
           </div>
         </header>
 
