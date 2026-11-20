@@ -57,3 +57,19 @@ contextBridge.exposeInMainWorld("abyslordAuth", {
     return () => ipcRenderer.removeListener("auth-callback", listener);
   }
 });
+
+// Detecção do AION 2
+contextBridge.exposeInMainWorld("abyslordGame", {
+  onGameStatus: (
+    callback: (status: { running: boolean }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      status: { running: boolean }
+    ) => callback(status);
+
+    ipcRenderer.on("game-status", listener);
+
+    return () => ipcRenderer.removeListener("game-status", listener);
+  }
+});
