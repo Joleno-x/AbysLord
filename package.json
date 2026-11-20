@@ -32,11 +32,12 @@
   "build": {
     "appId": "com.abyslord.desktop",
     "productName": "AbysLord",
-    "publish": {
-      "provider": "github",
-      "owner": "Joleno-x",
-      "repo": "AbysLord"
-    },
+  "publish": {
+    "provider": "github",
+    "owner": "Joleno-x",
+    "repo": "AbysLord",
+  "releaseType": "release"
+   },
     "asar": true,
     "directories": {
       "output": "release"
