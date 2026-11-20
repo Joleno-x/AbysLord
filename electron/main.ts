@@ -27,7 +27,8 @@ if (!gotTheLock) {
     }
   }
 
-  // Detecta o processo do AION 2 no Windows
+  // Detecta o processo do AION 2 no Windows.
+  // Envia o estado a cada verificação para evitar perder o primeiro evento.
   function checkAionProcess() {
     if (process.platform !== "win32" || checkingGame) return;
 
@@ -43,13 +44,12 @@ if (!gotTheLock) {
         const detected =
           !error && stdout.toUpperCase().includes('"AION2.EXE"');
 
-        if (detected !== gameRunning) {
-          gameRunning = detected;
+        gameRunning = detected;
 
-          sendToWindow("game-status", {
-            running: gameRunning
-          });
-        }
+        // Envia sempre o estado atual, mesmo sem mudança.
+        sendToWindow("game-status", {
+          running: gameRunning
+        });
       }
     );
   }
@@ -102,7 +102,7 @@ if (!gotTheLock) {
         mainWindow.focus();
       }
     } catch {
-      // Ignora links inválidos
+      // Ignora links inválidos.
     }
   }
 
@@ -144,9 +144,13 @@ if (!gotTheLock) {
         pendingAuthCallback = null;
       }
 
+      // Envia o estado atual após o carregamento da interface.
       sendToWindow("game-status", {
         running: gameRunning
       });
+
+      // Faz uma verificação adicional após a interface carregar.
+      checkAionProcess();
     });
 
     mainWindow.on("closed", () => {
