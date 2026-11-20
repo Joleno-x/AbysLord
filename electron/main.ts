@@ -1,6 +1,7 @@
 
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
+import { execFile } from "node:child_process";
 import { autoUpdater } from "electron-updater";
 
 const isDev = !app.isPackaged;
@@ -8,6 +9,10 @@ const PROTOCOL = "abyslord";
 
 let mainWindow: BrowserWindow | null = null;
 let pendingAuthCallback: string | null = null;
+
+let gameRunning = false;
+let gameMonitor: ReturnType<typeof setInterval> | null = null;
+let checkingGame = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -19,6 +24,50 @@ if (!gotTheLock) {
   function sendToWindow(channel: string, ...args: unknown[]) {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, ...args);
+    }
+  }
+
+  // Detecta o processo do AION 2 no Windows
+  function checkAionProcess() {
+    if (process.platform !== "win32" || checkingGame) return;
+
+    checkingGame = true;
+
+    execFile(
+      "tasklist",
+      ["/FI", "IMAGENAME eq AION2.EXE", "/FO", "CSV", "/NH"],
+      { windowsHide: true },
+      (error, stdout) => {
+        checkingGame = false;
+
+        const detected =
+          !error && stdout.toUpperCase().includes('"AION2.EXE"');
+
+        if (detected !== gameRunning) {
+          gameRunning = detected;
+
+          sendToWindow("game-status", {
+            running: gameRunning
+          });
+        }
+      }
+    );
+  }
+
+  function startGameMonitor() {
+    if (gameMonitor) return;
+
+    checkAionProcess();
+
+    gameMonitor = setInterval(() => {
+      checkAionProcess();
+    }, 3000);
+  }
+
+  function stopGameMonitor() {
+    if (gameMonitor) {
+      clearInterval(gameMonitor);
+      gameMonitor = null;
     }
   }
 
@@ -94,6 +143,10 @@ if (!gotTheLock) {
         sendToWindow("auth-callback", pendingAuthCallback);
         pendingAuthCallback = null;
       }
+
+      sendToWindow("game-status", {
+        running: gameRunning
+      });
     });
 
     mainWindow.on("closed", () => {
@@ -185,6 +238,7 @@ if (!gotTheLock) {
     checkStartupArguments(process.argv);
 
     createWindow();
+    startGameMonitor();
 
     if (!isDev) {
       setupUpdater();
@@ -199,6 +253,10 @@ if (!gotTheLock) {
         createWindow();
       }
     });
+  });
+
+  app.on("before-quit", () => {
+    stopGameMonitor();
   });
 
   app.on("window-all-closed", () => {
