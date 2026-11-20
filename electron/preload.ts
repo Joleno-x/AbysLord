@@ -1,24 +1,59 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 
+// Atualizações automáticas
 contextBridge.exposeInMainWorld("abyslordUpdater", {
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+
   downloadUpdate: () => ipcRenderer.invoke("download-update"),
+
   installUpdate: () => ipcRenderer.send("install-update"),
 
   onUpdateAvailable: (callback: (version: string) => void) => {
-    ipcRenderer.on("update-available", (_event, version) => callback(version));
+    const listener = (_event: Electron.IpcRendererEvent, version: string) =>
+      callback(version);
+
+    ipcRenderer.on("update-available", listener);
+
+    return () => ipcRenderer.removeListener("update-available", listener);
   },
 
   onUpdateDownloaded: (callback: () => void) => {
-    ipcRenderer.on("update-downloaded", () => callback());
+    const listener = () => callback();
+
+    ipcRenderer.on("update-downloaded", listener);
+
+    return () => ipcRenderer.removeListener("update-downloaded", listener);
   },
 
   onUpdateNotAvailable: (callback: () => void) => {
-    ipcRenderer.on("update-not-available", callback);
+    const listener = () => callback();
+
+    ipcRenderer.on("update-not-available", listener);
+
+    return () => ipcRenderer.removeListener("update-not-available", listener);
   },
 
   onUpdateError: (callback: (message: string) => void) => {
-    ipcRenderer.on("update-error", (_event, message) => callback(message));
+    const listener = (_event: Electron.IpcRendererEvent, message: string) =>
+      callback(message);
+
+    ipcRenderer.on("update-error", listener);
+
+    return () => ipcRenderer.removeListener("update-error", listener);
+  }
+});
+
+// Autenticação Discord
+contextBridge.exposeInMainWorld("abyslordAuth", {
+  openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+
+  onAuthCallback: (callback: (url: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, url: string) =>
+      callback(url);
+
+    ipcRenderer.on("auth-callback", listener);
+
+    return () => ipcRenderer.removeListener("auth-callback", listener);
   }
 });
