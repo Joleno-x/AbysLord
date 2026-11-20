@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   Activity, Anvil, Bell, CalendarClock, CalendarDays, Check, ChevronRight,
   CircleHelp, Coins, Crown, Flame, LayoutDashboard, LogIn, LogOut, Plus, RefreshCw,
-  Settings, Shield, Swords, Users, Zap, Clock3, ExternalLink, Sparkles
+  Settings, Shield, Swords, Users, Zap, Clock3, ExternalLink, Sparkles, Gamepad2
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
@@ -16,12 +16,19 @@ type UpdateApi = {
   onUpdateError: (callback: (message: string) => void) => (() => void) | void;
 };
 
+type GameStatus = {
+  running: boolean;
+};
+
 declare global {
   interface Window {
     abyslordUpdater?: UpdateApi;
     abyslordAuth?: {
       openExternal: (url: string) => Promise<{ ok: boolean; message?: string }>;
       onAuthCallback: (callback: (url: string) => void) => () => void;
+    };
+    abyslordGame?: {
+      onGameStatus: (callback: (status: GameStatus) => void) => () => void;
     };
   }
 }
@@ -129,7 +136,6 @@ function App() {
 
   const [characters, setCharacters] = useState<Character[]>(initialCharacters);
 
-  // Controle da sincronização com o Supabase.
   const [charactersLoadedForUser, setCharactersLoadedForUser] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState("Aguardando sincronização");
 
@@ -141,7 +147,9 @@ function App() {
   const [now, setNow] = useState(() => new Date());
   const [notice, setNotice] = useState("");
 
-  // Estados do atualizador.
+  // Estado da detecção do AION 2.
+  const [gameRunning, setGameRunning] = useState<boolean | null>(null);
+
   const [updateVersion, setUpdateVersion] = useState("");
   const [updateDownloaded, setUpdateDownloaded] = useState(false);
   const [updateError, setUpdateError] = useState("");
@@ -186,6 +194,24 @@ function App() {
       inviteCheckInProgress.current.delete(user.id);
     }
   }
+
+  // Recebe o estado do processo AION2.EXE enviado pelo Electron.
+  useEffect(() => {
+    const gameApi = window.abyslordGame;
+
+    if (!gameApi) {
+      setGameRunning(null);
+      return;
+    }
+
+    const removeListener = gameApi.onGameStatus((status) => {
+      setGameRunning(status.running);
+    });
+
+    return () => {
+      removeListener?.();
+    };
+  }, []);
 
   // Recupera a sessão e recebe o retorno do Discord.
   useEffect(() => {
@@ -310,7 +336,6 @@ function App() {
         if (Array.isArray(savedCharacters)) {
           setCharacters(savedCharacters as Character[]);
         } else {
-          // Conta nova: começa vazia, sem receber dados demonstrativos.
           setCharacters([]);
         }
 
@@ -538,7 +563,6 @@ function App() {
     authUser?.user_metadata?.picture ||
     "";
 
-  // Novidades conhecidas da versão 1.3.3.
   const updateNotes = updateVersion === "1.3.3"
     ? [
         "Correções no carregamento dos personagens pela nuvem.",
@@ -822,6 +846,43 @@ function App() {
           <div className="breadcrumb">AbysLord <span>/</span> {activeNav}</div>
 
           <div className="top-actions">
+            <div
+              title={
+                gameRunning === null
+                  ? "Aguardando comunicação com o monitor do jogo"
+                  : gameRunning
+                    ? "O processo AION2.EXE foi detectado"
+                    : "O processo AION2.EXE não foi encontrado"
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "7px 11px",
+                borderRadius: 20,
+                border: `1px solid ${
+                  gameRunning === true ? "#28694b" :
+                  gameRunning === false ? "#494258" : "#66552d"
+                }`,
+                background:
+                  gameRunning === true ? "#153426" :
+                  gameRunning === false ? "#211e2b" : "#332b19",
+                color:
+                  gameRunning === true ? "#8de0b1" :
+                  gameRunning === false ? "#c2b9d4" : "#e5c77e",
+                fontSize: 11,
+                fontWeight: 700,
+                whiteSpace: "nowrap"
+              }}
+            >
+              <Gamepad2 size={15} />
+              {gameRunning === true
+                ? "AION 2 ABERTO"
+                : gameRunning === false
+                  ? "AION 2 FECHADO"
+                  : "VERIFICANDO JOGO"}
+            </div>
+
             <div className="timezone">BRASÍLIA · UTC−3</div>
 
             <button
