@@ -141,10 +141,12 @@ function App() {
   const [now, setNow] = useState(() => new Date());
   const [notice, setNotice] = useState("");
 
+  // Estados do atualizador.
   const [updateVersion, setUpdateVersion] = useState("");
   const [updateDownloaded, setUpdateDownloaded] = useState(false);
   const [updateError, setUpdateError] = useState("");
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
 
   const cap = subscription ? 840 : 560;
 
@@ -434,6 +436,7 @@ function App() {
     return () => window.clearInterval(t);
   }, []);
 
+  // Recebe os eventos do sistema de atualização do Electron.
   useEffect(() => {
     const updater = window.abyslordUpdater;
     if (!updater) return;
@@ -442,6 +445,8 @@ function App() {
       setUpdateVersion(version);
       setUpdateDownloaded(false);
       setUpdateError("");
+      setUpdateBusy(false);
+      setUpdateDismissed(false);
     });
 
     const removeDownloaded = updater.onUpdateDownloaded(() => {
@@ -533,6 +538,18 @@ function App() {
     authUser?.user_metadata?.picture ||
     "";
 
+  // Novidades conhecidas da versão 1.3.3.
+  const updateNotes = updateVersion === "1.3.3"
+    ? [
+        "Correções no carregamento dos personagens pela nuvem.",
+        "Ajustes nas permissões de acesso ao banco de dados.",
+        "Melhorias na sincronização dos dados da conta."
+      ]
+    : [
+        "Melhorias e correções gerais do aplicativo.",
+        "Confira as informações específicas desta versão no anúncio de lançamento."
+      ];
+
   if (!loggedInPreview) {
     return (
       <div className="login-screen">
@@ -591,7 +608,8 @@ function App() {
   return (
     <div className="app-shell">
 
-      {(updateVersion || updateDownloaded || updateError) && (
+      {/* Janela de atualização */}
+      {(updateVersion || updateDownloaded || updateError) && !updateDismissed && (
         <div style={{
           position: "fixed",
           top: 16,
@@ -600,22 +618,62 @@ function App() {
           background: "#17152b",
           border: "1px solid #7655c9",
           borderRadius: 12,
-          padding: 18,
+          padding: 20,
           color: "#fff",
-          maxWidth: 360,
+          maxWidth: 380,
           width: "calc(100% - 40px)",
           boxShadow: "0 8px 30px #0008"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <RefreshCw size={18} />
-            <strong>Atualização do AbysLord</strong>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 9,
+            marginBottom: 12
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <RefreshCw size={19} color="#b69aff" />
+              <strong>Atualização do AbysLord</strong>
+            </div>
+
+            <button
+              onClick={() => setUpdateDismissed(true)}
+              title="Fechar aviso"
+              style={{
+                border: 0,
+                background: "transparent",
+                color: "#aaa",
+                fontSize: 22,
+                cursor: "pointer",
+                padding: "0 4px"
+              }}
+            >
+              ×
+            </button>
           </div>
 
           {updateDownloaded ? (
             <>
-              <p>Atualização baixada! Reinicie o aplicativo para instalar.</p>
+              <div style={{
+                background: "#203b32",
+                borderRadius: 8,
+                padding: 10,
+                marginBottom: 12,
+                color: "#a8f0c8",
+                fontSize: 13
+              }}>
+                <Check size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                Atualização baixada com sucesso!
+              </div>
+
+              <p style={{ fontSize: 14, lineHeight: 1.5 }}>
+                A versão v{updateVersion} está pronta para ser instalada.
+                Reinicie o AbysLord para concluir a atualização.
+              </p>
+
               <button
                 className="primary-button"
+                style={{ width: "100%", justifyContent: "center" }}
                 onClick={() => window.abyslordUpdater?.installUpdate()}
               >
                 Reiniciar e instalar
@@ -623,22 +681,91 @@ function App() {
             </>
           ) : updateVersion ? (
             <>
-              <p>Uma nova versão está disponível: v{updateVersion}</p>
+              <div style={{
+                fontSize: 13,
+                color: "#b9a8e8",
+                marginBottom: 8
+              }}>
+                NOVA VERSÃO DISPONÍVEL
+              </div>
+
+              <div style={{
+                fontSize: 25,
+                fontWeight: 800,
+                marginBottom: 10
+              }}>
+                AbysLord v{updateVersion}
+              </div>
+
+              <p style={{
+                fontSize: 13,
+                color: "#c9c4d8",
+                margin: "0 0 8px"
+              }}>
+                Novidades e correções:
+              </p>
+
+              <ul style={{
+                margin: "0 0 18px",
+                paddingLeft: 19,
+                color: "#e0dbea",
+                fontSize: 13,
+                lineHeight: 1.7
+              }}>
+                {updateNotes.map((note, index) => (
+                  <li key={index}>{note}</li>
+                ))}
+              </ul>
+
               <button
                 className="primary-button"
+                style={{ width: "100%", justifyContent: "center" }}
                 disabled={updateBusy}
-                onClick={downloadAbysLordUpdate}
+                onClick={() => void downloadAbysLordUpdate()}
               >
-                {updateBusy ? "Baixando atualização..." : "Baixar atualização"}
+                {updateBusy ? (
+                  <>
+                    <RefreshCw size={15} />
+                    Baixando atualização...
+                  </>
+                ) : (
+                  <>
+                    <DownloadIcon />
+                    Atualizar agora
+                  </>
+                )}
               </button>
             </>
           ) : null}
 
           {updateError && (
-            <p style={{ color: "#ff9999", fontSize: 13 }}>
+            <p style={{
+              color: "#ff9999",
+              fontSize: 13,
+              lineHeight: 1.5,
+              marginTop: 12
+            }}>
               Erro: {updateError}
             </p>
           )}
+
+          <button
+            onClick={() => setUpdateDismissed(true)}
+            disabled={updateBusy}
+            style={{
+              width: "100%",
+              marginTop: 10,
+              padding: 9,
+              borderRadius: 7,
+              border: "1px solid #45405a",
+              background: "transparent",
+              color: "#c5bfd4",
+              cursor: updateBusy ? "not-allowed" : "pointer",
+              opacity: updateBusy ? 0.5 : 1
+            }}
+          >
+            Lembrar depois
+          </button>
         </div>
       )}
 
@@ -1040,6 +1167,10 @@ function App() {
       )}
     </div>
   );
+}
+
+function DownloadIcon() {
+  return <RefreshCw size={15} />;
 }
 
 function Summary({ icon, label, value, detail, timer = false }: {
