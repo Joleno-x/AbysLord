@@ -13,6 +13,7 @@
     "build:win": "npm run build && electron-builder --win nsis"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "electron-updater": "^6.6.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
@@ -32,12 +33,12 @@
   "build": {
     "appId": "com.abyslord.desktop",
     "productName": "AbysLord",
-  "publish": {
-    "provider": "github",
-    "owner": "Joleno-x",
-    "repo": "AbysLord",
-  "releaseType": "release"
-   },
+    "publish": {
+      "provider": "github",
+      "owner": "Joleno-x",
+      "repo": "AbysLord",
+      "releaseType": "release"
+    },
     "asar": true,
     "directories": {
       "output": "release"
