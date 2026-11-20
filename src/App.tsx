@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -157,6 +156,28 @@ function App() {
 
   const cap = subscription ? 840 : 560;
 
+  // Texto e cor do indicador do AION 2
+  const gameStatusLabel =
+    gameRunning === true
+      ? "AION 2 ABERTO"
+      : gameRunning === false
+        ? "AION 2 FECHADO"
+        : "VERIFICANDO JOGO";
+
+  const gameStatusColor =
+    gameRunning === true
+      ? "#8de0b1"
+      : gameRunning === false
+        ? "#c2b9d4"
+        : "#e5c77e";
+
+  const gameStatusTitle =
+    gameRunning === null
+      ? "Aguardando comunicação com o monitor do jogo"
+      : gameRunning
+        ? "O processo AION2.EXE foi detectado"
+        : "O processo AION2.EXE não foi encontrado";
+
   const inviteCheckInProgress = useRef(new Set<string>());
   const inviteChecked = useRef(new Set<string>());
 
@@ -194,16 +215,20 @@ function App() {
     }
   }
 
+  // Recebe do Electron o estado do processo AION2.EXE
   useEffect(() => {
     const gameApi = window.abyslordGame;
 
     if (!gameApi) {
       setGameRunning(null);
+      console.error("API de detecção do AION 2 não encontrada no preload.");
       return;
     }
 
     const removeListener = gameApi.onGameStatus((status) => {
-      setGameRunning(status.running);
+      if (typeof status?.running === "boolean") {
+        setGameRunning(status.running);
+      }
     });
 
     return () => {
@@ -574,6 +599,42 @@ function App() {
         <div className="login-bg" style={{ backgroundImage: `url("${LUDRA_IMAGE}")` }} />
         <div className="login-vignette" />
 
+        {/* Indicador do jogo também visível na tela de login */}
+        <div
+          role="status"
+          aria-live="polite"
+          title={gameStatusTitle}
+          style={{
+            position: "absolute",
+            top: 18,
+            left: 20,
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "9px 12px",
+            border: "1px solid #39304c",
+            borderRadius: 9,
+            background: "rgba(13,13,24,.88)",
+            color: gameStatusColor,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.05em"
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              flexShrink: 0,
+              background: gameStatusColor,
+              boxShadow: `0 0 9px ${gameStatusColor}`
+            }}
+          />
+          {gameStatusLabel}
+        </div>
+
         <div className="login-content">
           <div className="login-mark"><Crown size={34} /></div>
           <div className="login-brand">AbysLord</div>
@@ -817,33 +878,26 @@ function App() {
           );
         })}
 
-        {/* Status do AION 2: texto simples, sem botão */}
+        {/* Indicador do AION 2 abaixo das opções da barra lateral */}
         <div
-          title={
-            gameRunning === null
-              ? "Aguardando comunicação com o monitor do jogo"
-              : gameRunning
-                ? "O processo AION2.EXE foi detectado"
-                : "O processo AION2.EXE não foi encontrado"
-          }
+          role="status"
+          aria-live="polite"
+          title={gameStatusTitle}
           style={{
+            display: "block",
+            flexShrink: 0,
+            minHeight: 42,
             margin: "18px 14px 12px",
             paddingTop: 14,
             borderTop: "1px solid #302b42",
-            color:
-              gameRunning === true ? "#8de0b1" :
-              gameRunning === false ? "#c2b9d4" : "#e5c77e",
+            color: gameStatusColor,
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: "0.04em",
             whiteSpace: "nowrap"
           }}
         >
-          {gameRunning === true
-            ? "AION 2 ABERTO"
-            : gameRunning === false
-              ? "AION 2 FECHADO"
-              : "VERIFICANDO JOGO"}
+          {gameStatusLabel}
         </div>
 
         <div className="sidebar-bottom">
