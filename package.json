@@ -1,3 +1,4 @@
+
 {
   "name": "abyslord",
   "version": "1.3.0",
@@ -12,6 +13,7 @@
     "build:win": "npm run build && electron-builder --win nsis"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -30,6 +32,11 @@
   "build": {
     "appId": "com.abyslord.desktop",
     "productName": "AbysLord",
+    "publish": {
+      "provider": "github",
+      "owner": "Joleno-x",
+      "repo": "AbysLord"
+    },
     "asar": true,
     "directories": {
       "output": "release"
