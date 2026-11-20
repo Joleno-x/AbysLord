@@ -2,13 +2,12 @@
 name: Build AbysLord for Windows
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -29,12 +28,7 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Build Windows installer
-        run: npx electron-builder --win nsis --publish never
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: AbysLord-Windows-Installer
-          path: release/*.exe
-          if-no-files-found: error
+      - name: Publish Windows installer and update files
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
