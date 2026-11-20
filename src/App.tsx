@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   Activity, Anvil, Bell, CalendarClock, CalendarDays, Check, ChevronRight,
   CircleHelp, Coins, Crown, Flame, LayoutDashboard, LogIn, LogOut, Plus, RefreshCw,
-  Settings, Shield, Swords, Users, Zap, Clock3, ExternalLink, Sparkles, Gamepad2
+  Settings, Shield, Swords, Users, Zap, Clock3, ExternalLink, Sparkles
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
@@ -147,7 +147,6 @@ function App() {
   const [now, setNow] = useState(() => new Date());
   const [notice, setNotice] = useState("");
 
-  // Estado da detecção do AION 2.
   const [gameRunning, setGameRunning] = useState<boolean | null>(null);
 
   const [updateVersion, setUpdateVersion] = useState("");
@@ -195,7 +194,6 @@ function App() {
     }
   }
 
-  // Recebe o estado do processo AION2.EXE enviado pelo Electron.
   useEffect(() => {
     const gameApi = window.abyslordGame;
 
@@ -213,7 +211,6 @@ function App() {
     };
   }, []);
 
-  // Recupera a sessão e recebe o retorno do Discord.
   useEffect(() => {
     let active = true;
 
@@ -306,7 +303,6 @@ function App() {
     };
   }, []);
 
-  // Carrega os personagens pertencentes à conta conectada.
   useEffect(() => {
     if (!authUser) {
       setCharactersLoadedForUser(null);
@@ -360,7 +356,6 @@ function App() {
     };
   }, [authUser?.id]);
 
-  // Salva automaticamente as alterações na conta conectada.
   useEffect(() => {
     if (!authUser || charactersLoadedForUser !== authUser.id) {
       return;
@@ -461,7 +456,6 @@ function App() {
     return () => window.clearInterval(t);
   }, []);
 
-  // Recebe os eventos do sistema de atualização do Electron.
   useEffect(() => {
     const updater = window.abyslordUpdater;
     if (!updater) return;
@@ -632,7 +626,6 @@ function App() {
   return (
     <div className="app-shell">
 
-      {/* Janela de atualização */}
       {(updateVersion || updateDownloaded || updateError) && !updateDismissed && (
         <div style={{
           position: "fixed",
@@ -824,6 +817,35 @@ function App() {
           );
         })}
 
+        {/* Status do AION 2: texto simples, sem botão */}
+        <div
+          title={
+            gameRunning === null
+              ? "Aguardando comunicação com o monitor do jogo"
+              : gameRunning
+                ? "O processo AION2.EXE foi detectado"
+                : "O processo AION2.EXE não foi encontrado"
+          }
+          style={{
+            margin: "18px 14px 12px",
+            paddingTop: 14,
+            borderTop: "1px solid #302b42",
+            color:
+              gameRunning === true ? "#8de0b1" :
+              gameRunning === false ? "#c2b9d4" : "#e5c77e",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap"
+          }}
+        >
+          {gameRunning === true
+            ? "AION 2 ABERTO"
+            : gameRunning === false
+              ? "AION 2 FECHADO"
+              : "VERIFICANDO JOGO"}
+        </div>
+
         <div className="sidebar-bottom">
           <button
             className="nav-item"
@@ -846,43 +868,6 @@ function App() {
           <div className="breadcrumb">AbysLord <span>/</span> {activeNav}</div>
 
           <div className="top-actions">
-            <div
-              title={
-                gameRunning === null
-                  ? "Aguardando comunicação com o monitor do jogo"
-                  : gameRunning
-                    ? "O processo AION2.EXE foi detectado"
-                    : "O processo AION2.EXE não foi encontrado"
-              }
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                padding: "7px 11px",
-                borderRadius: 20,
-                border: `1px solid ${
-                  gameRunning === true ? "#28694b" :
-                  gameRunning === false ? "#494258" : "#66552d"
-                }`,
-                background:
-                  gameRunning === true ? "#153426" :
-                  gameRunning === false ? "#211e2b" : "#332b19",
-                color:
-                  gameRunning === true ? "#8de0b1" :
-                  gameRunning === false ? "#c2b9d4" : "#e5c77e",
-                fontSize: 11,
-                fontWeight: 700,
-                whiteSpace: "nowrap"
-              }}
-            >
-              <Gamepad2 size={15} />
-              {gameRunning === true
-                ? "AION 2 ABERTO"
-                : gameRunning === false
-                  ? "AION 2 FECHADO"
-                  : "VERIFICANDO JOGO"}
-            </div>
-
             <div className="timezone">BRASÍLIA · UTC−3</div>
 
             <button
