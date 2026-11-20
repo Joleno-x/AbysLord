@@ -279,59 +279,35 @@ function App() {
   }, []);
 
   // Carrega os personagens pertencentes à conta conectada.
-    useEffect(() => {
-      if (!authUser) {
-        setCharactersLoadedForUser(null);
-        setSyncStatus("Prévia local");
-        return;
-      }
-    
-      const userId = authUser.id;
-      let cancelled = false;
-    
-      async function loadCharacters() {
-        setCharactersLoadedForUser(null);
-        setSyncStatus("Carregando personagens...");
-    
-        try {
-          const { data, error } = await supabase
-            .from("user_characters")
-            .select("characters")
-            .eq("user_id", userId)
-            .maybeSingle();
-    
-          if (error) throw error;
-          if (cancelled) return;
-    
-          const savedCharacters = data?.characters;
-    
-          if (Array.isArray(savedCharacters)) {
-            setCharacters(savedCharacters as Character[]);
-          } else {
-            // Conta nova: começa vazia, sem receber dados demonstrativos.
-            setCharacters([]);
-          }
-    
-          setCharactersLoadedForUser(userId);
-          setSyncStatus("Sincronizado");
-        } catch (error) {
-          if (cancelled) return;
-    
-          console.error("Erro ao carregar personagens:", error);
-          setSyncStatus("Erro ao carregar");
-    
-          setNotice(
-            "Não foi possível carregar seus personagens da nuvem. Verifique sua conexão."
-          );
-        }
-      }
-    
-      void loadCharacters();
-    
-      return () => {
-        cancelled = true;
-      };
-    }, [authUser?.id]);
+  useEffect(() => {
+    if (!authUser) {
+      setCharactersLoadedForUser(null);
+      setSyncStatus("Prévia local");
+      return;
+    }
+
+    const userId = authUser.id;
+    let cancelled = false;
+
+    async function loadCharacters() {
+      setCharactersLoadedForUser(null);
+      setSyncStatus("Carregando personagens...");
+
+      try {
+        const { data, error } = await supabase
+          .from("user_characters")
+          .select("characters")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const savedCharacters = data?.characters;
+
+        if (Array.isArray(savedCharacters)) {
+          setCharacters(savedCharacters as Character[]);
+        } else {
           // Conta nova: começa vazia, sem receber dados demonstrativos.
           setCharacters([]);
         }
