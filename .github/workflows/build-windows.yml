@@ -1,3 +1,4 @@
+
 name: Build AbysLord for Windows
 
 on:
@@ -6,21 +7,33 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
 
-      - run: npm run build:win
+      - name: Build installer
+        run: npm run build:win
+        env:
+          GH_TOKEN: ""
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
         with:
           name: AbysLord-Windows-Installer
           path: release/*.exe
+          if-no-files-found: error
