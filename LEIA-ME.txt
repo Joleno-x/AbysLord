@@ -1,0 +1,35 @@
+ABYSLORD v1.3.0 — PRÉVIA VISUAL
+
+Esta versão parte do AbysLord_Atualizado_v1_1 e acrescenta:
+- Tela de entrada com a imagem da Ludra enviada pelo usuário, blur e sobreposição roxa.
+- Prévia visual do acesso com Discord (OAuth ainda não conectado).
+- Aba Personagens com cartões, campos de Item Level e CP e atalho Shugo.gg para JolenoSUP.
+- Aba Eventos com contagem regressiva ao vivo para Festival Shugo (de hora em hora) e Fenda do Espaço-Tempo (ciclo de 3 horas a partir das 05:00), no horário de Brasília.
+- Área futura para Bosses Mundiais.
+
+IMPORTANTE — O QUE AINDA NÃO ESTÁ CONECTADO
+Esta é uma prévia visual/local. O botão de login apenas abre o painel demonstrativo. OAuth do Discord, uso da foto real do perfil Discord, Supabase, sincronização entre computadores, armazenamento persistente, notificações sonoras do Windows, detecção do personagem dentro do jogo e preenchimento automático de retrato/ILV/CP ainda precisam ser implementados e configurados. Não insira segredos ou chaves privadas no aplicativo.
+
+COMO GERAR O INSTALADOR DO WINDOWS (AbysLord-Setup-1.3.0.exe)
+Requer Windows 10/11 e Node.js instalado apenas na máquina de desenvolvimento.
+1. Extraia o ZIP.
+2. Abra a pasta AbysLord.
+3. Abra o terminal nessa pasta.
+4. Execute: npm.cmd install
+5. Execute: npm.cmd run build:win
+6. O instalador será criado na pasta release.
+
+COMO USAR O APLICATIVO INSTALADO
+Quem receber o arquivo AbysLord-Setup-1.3.0.exe só precisa dar dois cliques e seguir o assistente. Não precisa instalar Node.js nem usar CMD. O instalador cria atalhos no Menu Iniciar e, se selecionado, na Área de Trabalho.
+
+GERAÇÃO AUTOMÁTICA PELO GITHUB
+Foi incluído um workflow em .github/workflows/build-windows-installer.yml. Depois de colocar o projeto em um repositório GitHub, ele pode gerar o instalador em um runner Windows ao iniciar manualmente o workflow ou publicar uma tag v*.
+
+OBSERVAÇÃO
+Esta entrega configura o projeto para gerar o instalador; o .exe ainda precisa ser compilado em Windows. A atualização automática dentro do app será configurada numa etapa seguinte, quando houver um repositório de publicação (GitHub Releases) definido.
+
+A imagem da Ludra é carregada pelo endereço de imagem fornecido pelo usuário; a tela precisa de conexão com a internet para exibi-la.
+
+
+NOVO NA V1.3
+- Fundo com imagem do Ludra desfocada aplicado exclusivamente à tela Painel. As telas Personagens, Eventos e Histórico mantêm o fundo anterior.
