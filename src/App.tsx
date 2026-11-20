@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Activity, Anvil, Bell, CalendarClock, CalendarDays, Check, ChevronRight,
@@ -143,6 +143,47 @@ function App() {
 
   const cap = subscription ? 840 : 560;
 
+  // Impede verificações repetidas do convite na mesma sessão.
+  const inviteCheckInProgress = useRef(new Set<string>());
+  const inviteChecked = useRef(new Set<string>());
+
+  // Abre o convite somente no primeiro acesso de cada conta.
+  async function checkAndOpenDiscordInvite(user: User) {
+    if (
+      inviteCheckInProgress.current.has(user.id) ||
+      inviteChecked.current.has(user.id)
+    ) {
+      return;
+    }
+
+    inviteCheckInProgress.current.add(user.id);
+
+    try {
+      const { data, error } = await supabase.rpc("claim_discord_invite");
+
+      if (error) {
+        throw error;
+      }
+
+      inviteChecked.current.add(user.id);
+
+      if (data === true) {
+        const result = await window.abyslordAuth?.openExternal(DISCORD_INVITE);
+
+        if (!result?.ok) {
+          console.error(
+            "Não foi possível abrir o convite do Discord:",
+            result?.message || "Sistema de abertura indisponível."
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao verificar o convite do Discord:", error);
+    } finally {
+      inviteCheckInProgress.current.delete(user.id);
+    }
+  }
+
   // Recupera a sessão e recebe o retorno do Discord.
   useEffect(() => {
     let active = true;
@@ -160,6 +201,7 @@ function App() {
       if (data.session) {
         setAuthUser(data.session.user);
         setLoggedInPreview(true);
+        void checkAndOpenDiscordInvite(data.session.user);
       }
     }
 
@@ -173,6 +215,13 @@ function App() {
 
         if (session) {
           setLoggedInPreview(true);
+
+          // Executa depois do callback de autenticação para evitar bloqueios.
+          window.setTimeout(() => {
+            if (active) {
+              void checkAndOpenDiscordInvite(session.user);
+            }
+          }, 0);
         }
       }
     );
@@ -201,6 +250,7 @@ function App() {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
           if (error) throw error;
+
           if (!data.session) {
             throw new Error("Não foi possível iniciar sua sessão.");
           }
@@ -209,6 +259,8 @@ function App() {
             setAuthUser(data.session.user);
             setLoggedInPreview(true);
             setAuthError("");
+
+            void checkAndOpenDiscordInvite(data.session.user);
           }
         } catch (error) {
           if (active) {
