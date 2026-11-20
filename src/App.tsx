@@ -127,7 +127,12 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  const [characters, setCharacters] = useState(initialCharacters);
+  const [characters, setCharacters] = useState<Character[]>(initialCharacters);
+
+  // Controle da sincronização com o Supabase.
+  const [charactersLoadedForUser, setCharactersLoadedForUser] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState("Aguardando sincronização");
+
   const [subscription, setSubscription] = useState(false);
   const [activeNav, setActiveNav] = useState("Painel");
   const [showAdd, setShowAdd] = useState(false);
@@ -143,11 +148,9 @@ function App() {
 
   const cap = subscription ? 840 : 560;
 
-  // Impede verificações repetidas do convite na mesma sessão.
   const inviteCheckInProgress = useRef(new Set<string>());
   const inviteChecked = useRef(new Set<string>());
 
-  // Abre o convite somente no primeiro acesso de cada conta.
   async function checkAndOpenDiscordInvite(user: User) {
     if (
       inviteCheckInProgress.current.has(user.id) ||
@@ -161,9 +164,7 @@ function App() {
     try {
       const { data, error } = await supabase.rpc("claim_discord_invite");
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       inviteChecked.current.add(user.id);
 
@@ -216,7 +217,6 @@ function App() {
         if (session) {
           setLoggedInPreview(true);
 
-          // Executa depois do callback de autenticação para evitar bloqueios.
           window.setTimeout(() => {
             if (active) {
               void checkAndOpenDiscordInvite(session.user);
@@ -237,9 +237,7 @@ function App() {
             parsedUrl.searchParams.get("error_description") ||
             parsedUrl.searchParams.get("error");
 
-          if (errorDescription) {
-            throw new Error(errorDescription);
-          }
+          if (errorDescription) throw new Error(errorDescription);
 
           const code = parsedUrl.searchParams.get("code");
 
@@ -259,7 +257,6 @@ function App() {
             setAuthUser(data.session.user);
             setLoggedInPreview(true);
             setAuthError("");
-
             void checkAndOpenDiscordInvite(data.session.user);
           }
         } catch (error) {
@@ -281,7 +278,101 @@ function App() {
     };
   }, []);
 
-  // Login real com Discord.
+  // Carrega os personagens pertencentes à conta conectada.
+  useEffect(() => {
+    const userId = authUser?.id;
+    let cancelled = false;
+
+    if (!userId) {
+      setCharactersLoadedForUser(null);
+      setSyncStatus("Prévia local");
+      return;
+    }
+
+    async function loadCharacters() {
+      setCharactersLoadedForUser(null);
+      setSyncStatus("Carregando personagens...");
+
+      try {
+        const { data, error } = await supabase
+          .from("user_characters")
+          .select("characters")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const savedCharacters = data?.characters;
+
+        if (Array.isArray(savedCharacters)) {
+          setCharacters(savedCharacters as Character[]);
+        } else {
+          // Conta nova: começa vazia, sem receber dados demonstrativos.
+          setCharacters([]);
+        }
+
+        setCharactersLoadedForUser(userId);
+        setSyncStatus("Sincronizado");
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Erro ao carregar personagens:", error);
+        setSyncStatus("Erro ao carregar");
+
+        setNotice(
+          "Não foi possível carregar seus personagens da nuvem. Verifique sua conexão."
+        );
+      }
+    }
+
+    void loadCharacters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
+  // Salva automaticamente as alterações na conta conectada.
+  useEffect(() => {
+    if (!authUser || charactersLoadedForUser !== authUser.id) {
+      return;
+    }
+
+    const userId = authUser.id;
+
+    const timeout = window.setTimeout(() => {
+      async function saveCharacters() {
+        setSyncStatus("Salvando...");
+
+        try {
+          const { error } = await supabase
+            .from("user_characters")
+            .upsert(
+              {
+                user_id: userId,
+                characters,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: "user_id" }
+            );
+
+          if (error) throw error;
+
+          setSyncStatus("Sincronizado");
+        } catch (error) {
+          console.error("Erro ao salvar personagens:", error);
+          setSyncStatus("Erro ao sincronizar");
+          setNotice("Não foi possível salvar seus personagens na nuvem.");
+        }
+      }
+
+      void saveCharacters();
+    }, 800);
+
+    return () => window.clearTimeout(timeout);
+  }, [characters, authUser, charactersLoadedForUser]);
+
   async function loginWithDiscord() {
     if (!window.abyslordAuth) {
       setAuthError("O sistema de autenticação do aplicativo não está disponível. Verifique a versão instalada.");
@@ -330,6 +421,9 @@ function App() {
     }
 
     setAuthUser(null);
+    setCharactersLoadedForUser(null);
+    setCharacters(initialCharacters);
+    setSyncStatus("Prévia local");
     setLoggedInPreview(false);
     setAuthError("");
     setActiveNav("Painel");
@@ -589,7 +683,9 @@ function App() {
           </button>
 
           <div className="connection">
-            <span className="status-dot" /> {authUser ? "Conta conectada" : "Prévia local"} <span className="version">v1.3</span>
+            <span className="status-dot" />
+            {authUser ? "Conta conectada" : "Prévia local"}
+            <span className="version">v1.3</span>
           </div>
         </div>
       </aside>
@@ -671,7 +767,7 @@ function App() {
                 <div className="heading-actions">
                   <button
                     className="secondary-button"
-                    onClick={() => setNotice("Os dados desta prévia são demonstrativos.")}
+                    onClick={() => setNotice("Os dados são sincronizados automaticamente quando você está conectado.")}
                   >
                     <RefreshCw size={15} /> Atualizar
                   </button>
@@ -692,9 +788,12 @@ function App() {
               <div className="section-heading">
                 <div>
                   <h2>Checklist de personagens</h2>
-                  <p>Os valores abaixo são demonstrativos até conectarmos uma fonte de dados.</p>
+                  <p>Seus personagens são carregados e salvos na sua conta.</p>
                 </div>
-                <span className="demo-pill"><span /> DADOS DE EXEMPLO</span>
+                <span className="demo-pill">
+                  <span />
+                  {authUser ? syncStatus.toUpperCase() : "DADOS DE EXEMPLO"}
+                </span>
               </div>
 
               <div className="table-wrap">
@@ -795,11 +894,22 @@ function App() {
                 ))}
               </div>
 
+              {characters.length === 0 && (
+                <div className="empty-state">
+                  <Users size={30} />
+                  <h2>Nenhum personagem cadastrado</h2>
+                  <p>Adicione seu primeiro personagem para começar a acompanhar seus dados.</p>
+                  <button className="primary-button" onClick={() => setShowAdd(true)}>
+                    <Plus size={16} /> Adicionar personagem
+                  </button>
+                </div>
+              )}
+
               <div className="integration-note">
                 <Sparkles size={17} />
                 <div>
-                  <strong>Foto, Item Level e CP automáticos</strong>
-                  <p>Após conectar Discord e a consulta de perfil público, a foto do Discord será usada na conta do jogador e os dados públicos do personagem poderão preencher estes campos.</p>
+                  <strong>Sincronização de personagens</strong>
+                  <p>Os personagens desta conta são salvos no Supabase e poderão ser carregados em outros computadores ao entrar com a mesma conta Discord.</p>
                 </div>
               </div>
             </>
@@ -869,14 +979,15 @@ function App() {
               <div className="empty-state">
                 <Activity size={30} />
                 <h2>Seu histórico aparecerá aqui</h2>
-                <p>Quando o armazenamento local e a sincronização estiverem conectados, as atividades serão registradas nesta área.</p>
+                <p>O registro de atividades será conectado em uma próxima etapa.</p>
               </div>
             </>
           )}
         </section>
 
         <footer className="app-footer">
-          ABYSLORD <span>·</span> PRÉVIA VISUAL v1.3 <span>·</span> DADOS DEMONSTRATIVOS
+          ABYSLORD <span>·</span> PRÉVIA VISUAL v1.3 <span>·</span>
+          {authUser ? `NUVEM: ${syncStatus.toUpperCase()}` : "PRÉVIA LOCAL"}
         </footer>
       </main>
 
@@ -917,7 +1028,7 @@ function App() {
             />
 
             <p className="portrait-note">
-              A foto, Item Level e CP serão preenchidos quando as integrações de conta e perfil público estiverem conectadas.
+              A foto, Item Level e CP serão preenchidos quando as integrações de perfil público estiverem conectadas.
             </p>
 
             <div className="modal-actions">
